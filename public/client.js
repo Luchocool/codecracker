@@ -426,7 +426,7 @@
       guessStatus.classList.add('hidden');
     } else {
       turnBanner.className = 'text-center mb-6 py-3 px-4 rounded-xl glass-strong';
-      turnText.innerHTML = '⏳ Waiting for opponent to guess...';
+      turnText.innerHTML = '⏳ Waiting for the opps...';
       btnSubmitGuess.classList.add('hidden');
       guessStatus.classList.add('hidden');
     }
@@ -450,7 +450,7 @@
       guessStatus.textContent = '';
     } else {
       turnBanner.className = 'text-center mb-6 py-3 px-4 rounded-xl glass-strong';
-      turnText.innerHTML = '⏳ Waiting for opponent to guess...';
+      turnText.innerHTML = '⏳ Waiting for the opps...';
       btnSubmitGuess.disabled = true;
       guessStatus.textContent = '';
     }
@@ -472,7 +472,7 @@
       syncDialDisplay(guessDialsContainer, guessDials);
     } else {
       turnBanner.className = 'text-center mb-6 py-3 px-4 rounded-xl glass-strong';
-      turnText.innerHTML = '⏳ Waiting for opponent to guess...';
+      turnText.innerHTML = '⏳ Waiting for the opps...';
       btnSubmitGuess.disabled = true;
       guessStatus.classList.add('hidden');
     }
