@@ -681,7 +681,7 @@
     const el = document.createElement('div');
     const isMyGuess = entry.playerId === state.playerId;
     const playerName = isMyGuess ? 'You' : 'Opponent';
-    el.className = `guess-entry fade-slide-in ${entry.isWin ? 'win' : ''}`;
+    el.className = `guess-entry fade-slide-in ${isMyGuess ? 'yours' : ''} ${entry.isWin ? 'win' : ''}`;
     el.innerHTML = `
       <div class="flex justify-between items-center">
         <span class="text-sm text-gray-400">${playerName}</span>
