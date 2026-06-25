@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 # CodeCracker 🔒
 
 A real-time multiplayer code-cracking game built with Node.js, Socket.io, and Tailwind CSS. Two players face off — set a secret code, then take turns guessing each other's combination.
@@ -48,3 +49,7 @@ Open **two browser tabs** (or two devices on the same network) to `http://localh
 
 - **Backend:** Node.js, Express, Socket.io
 - **Frontend:** HTML5, CSS3, Tailwind CSS (CDN), Socket.io client (CDN)
+=======
+# codecracker
+A game for guessing the opponents code.
+>>>>>>> 6bf70123c8abe3ffe9e6d2bda6ffbfa447d15e04
