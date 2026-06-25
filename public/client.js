@@ -168,9 +168,10 @@
       inputNameHost.value = hostPlayer.name;
       state.myName = hostPlayer.name;
     }
+    inputNameHost.disabled = !state.isHost;
     if (guestPlayer) {
       inputNameGuest.value = guestPlayer.name;
-      inputNameGuest.disabled = false;
+      inputNameGuest.disabled = state.isHost;
       inputNameGuest.placeholder = 'Your Name';
     } else {
       inputNameGuest.value = '';
