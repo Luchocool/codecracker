@@ -67,6 +67,7 @@
   const guessStatus = $('guess-status');
   const guessHistoryContainer = $('guess-history-container');
   const guessHistoryEl = $('guess-history');
+  const btnToggleOpponentGuesses = $('btn-toggle-opponent-guesses');
   const waitingCodeOverlay = $('waiting-code-overlay');
   const gameoverIcon = $('gameover-icon');
   const gameoverTitle = $('gameover-title');
@@ -702,6 +703,15 @@
       btnSubmitGuess.textContent = 'SUBMIT GUESS';
     }
   }
+
+  // Guess History - Toggle opponent guesses
+  let opponentGuessesHidden = false;
+  btnToggleOpponentGuesses.addEventListener('click', () => {
+    opponentGuessesHidden = !opponentGuessesHidden;
+    guessHistoryEl.classList.toggle('hide-opponent', opponentGuessesHidden);
+    btnToggleOpponentGuesses.textContent = opponentGuessesHidden ? 'Show Their Guesses' : 'Hide Their Guesses';
+    btnToggleOpponentGuesses.classList.toggle('active', opponentGuessesHidden);
+  });
 
   // Game Over - Play Again
   btnPlayAgain.addEventListener('click', () => {
