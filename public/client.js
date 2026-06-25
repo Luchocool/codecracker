@@ -126,6 +126,25 @@
         updateDialDisplay(container, idx, dials[idx]);
       }, { passive: false });
 
+      let touchStartY = 0;
+      el.addEventListener('touchstart', (e) => {
+        touchStartY = e.touches[0].clientY;
+      }, { passive: true });
+
+      el.addEventListener('touchmove', (e) => {
+        e.preventDefault();
+        const dy = e.touches[0].clientY - touchStartY;
+        if (Math.abs(dy) < 15) return;
+        const idx = parseInt(el.dataset.idx);
+        if (dy < 0) {
+          dials[idx] = (dials[idx] + 1) % 10;
+        } else {
+          dials[idx] = (dials[idx] + 9) % 10;
+        }
+        updateDialDisplay(container, idx, dials[idx]);
+        touchStartY = e.touches[0].clientY;
+      }, { passive: false });
+
       el.addEventListener('click', (e) => {
         const idx = parseInt(el.dataset.idx);
         dials[idx] = (dials[idx] + 1) % 10;
