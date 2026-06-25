@@ -136,6 +136,45 @@
     #guess-history.hide-opponent .guess-entry:not(.yours) {
       display: none;
     }
+    .exclusion-tile {
+      position: relative;
+      width: 38px;
+      height: 38px;
+      border-radius: 8px;
+      border: 2px solid rgba(34, 197, 94, 0.5);
+      background: rgba(34, 197, 94, 0.1);
+      color: rgb(34, 197, 94);
+      font-size: 0.95rem;
+      font-weight: 700;
+      cursor: pointer;
+      transition: all 0.2s;
+      overflow: hidden;
+    }
+    .exclusion-tile:hover {
+      background: rgba(34, 197, 94, 0.2);
+      border-color: rgba(34, 197, 94, 0.7);
+    }
+    .exclusion-tile.excluded {
+      border-color: rgba(239, 68, 68, 0.5);
+      background: rgba(239, 68, 68, 0.1);
+      color: rgb(239, 68, 68);
+    }
+    .exclusion-tile.excluded:hover {
+      background: rgba(239, 68, 68, 0.2);
+      border-color: rgba(239, 68, 68, 0.7);
+    }
+    .exclusion-tile.excluded::after {
+      content: '';
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      width: 65%;
+      height: 2px;
+      background: rgb(239, 68, 68);
+      transform: translate(-50%, -50%) rotate(-45deg);
+      pointer-events: none;
+      border-radius: 1px;
+    }
     .guess-entry .guess-numbers {
       font-family: 'Courier New', monospace;
       font-weight: 700;
@@ -367,6 +406,25 @@
           SUBMIT GUESS
         </button>
         <p id="guess-status" class="text-center text-sm mt-3 hidden"></p>
+
+        <!-- Exclusion Grid -->
+        <div id="exclusion-grid" class="mt-6">
+          <p class="text-xs text-gray-400 uppercase tracking-wider mb-2 text-center">Excluded Numbers</p>
+          <div class="flex flex-wrap justify-center gap-2">
+            <button class="exclusion-tile" data-num="0">0</button>
+            <button class="exclusion-tile" data-num="1">1</button>
+            <button class="exclusion-tile" data-num="2">2</button>
+            <button class="exclusion-tile" data-num="3">3</button>
+            <button class="exclusion-tile" data-num="4">4</button>
+          </div>
+          <div class="flex flex-wrap justify-center gap-2 mt-2">
+            <button class="exclusion-tile" data-num="5">5</button>
+            <button class="exclusion-tile" data-num="6">6</button>
+            <button class="exclusion-tile" data-num="7">7</button>
+            <button class="exclusion-tile" data-num="8">8</button>
+            <button class="exclusion-tile" data-num="9">9</button>
+          </div>
+        </div>
 
         <!-- Guess History -->
         <div id="guess-history-container" class="mt-6 hidden">

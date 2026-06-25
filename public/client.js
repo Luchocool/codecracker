@@ -713,6 +713,12 @@
     btnToggleOpponentGuesses.classList.toggle('active', opponentGuessesHidden);
   });
 
+  // Exclusion Grid - Toggle number tiles
+  document.getElementById('exclusion-grid').addEventListener('click', (e) => {
+    const tile = e.target.closest('.exclusion-tile');
+    if (tile) tile.classList.toggle('excluded');
+  });
+
   // Game Over - Play Again
   btnPlayAgain.addEventListener('click', () => {
     socket.emit('play-again');
