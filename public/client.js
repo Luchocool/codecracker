@@ -29,6 +29,7 @@
   let codeDials = [];
   let guessDials = [];
   let mySecretCode = '';
+  let codeTimer = null;
 
   // --- DOM refs ---
   const $ = (id) => document.getElementById(id);
@@ -69,6 +70,7 @@
   const guessHistoryEl = $('guess-history');
   const btnToggleOpponentGuesses = $('btn-toggle-opponent-guesses');
   const waitingCodeOverlay = $('waiting-code-overlay');
+  const codeTimerEl = $('code-timer');
   const gameoverIcon = $('gameover-icon');
   const gameoverTitle = $('gameover-title');
   const gameoverSubtitle = $('gameover-subtitle');
@@ -403,10 +405,34 @@
     btnSubmitCode.textContent = 'SUBMIT';
     submitCodeStatus.classList.add('hidden');
 
+    // Code timer
+    clearInterval(codeTimer);
+    let seconds = 60;
+    codeTimerEl.textContent = '01:00';
+    codeTimerEl.classList.remove('hidden');
+    codeTimer = setInterval(() => {
+      seconds--;
+      const m = String(Math.floor(seconds / 60)).padStart(2, '0');
+      const s = String(seconds % 60).padStart(2, '0');
+      codeTimerEl.textContent = `${m}:${s}`;
+      if (seconds <= 0) {
+        clearInterval(codeTimer);
+        codeTimerEl.classList.add('hidden');
+        const changedCount = codeDials.filter(v => v !== 0).length;
+        const code = changedCount >= 2 ? getDialValues(codeDials) : Array.from({ length: state.codeLength }, () => Math.floor(Math.random() * 10)).join('');
+        mySecretCode = code;
+        btnSubmitCode.disabled = true;
+        btnSubmitCode.textContent = 'Submitting...';
+        socket.emit('submit-code', { code });
+      }
+    }, 1000);
+
     showView('view-game');
   });
 
   socket.on('code-submitted', (data) => {
+    clearInterval(codeTimer);
+    codeTimerEl.classList.add('hidden');
     state.myCodeSubmitted = true;
     btnSubmitCode.disabled = true;
     btnSubmitCode.textContent = '✅ Code Submitted';
@@ -658,6 +684,9 @@
     state.myCodeSubmitted = false;
     state.guessHistory = [];
     state.winnerId = null;
+
+    clearInterval(codeTimer);
+    codeTimerEl.classList.add('hidden');
 
     homeMain.classList.remove('hidden');
     homeOptions.classList.add('hidden');
