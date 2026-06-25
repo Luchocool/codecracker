@@ -227,15 +227,11 @@
       }
     });
 
-    // Guest overlay
+    guestOverlay.classList.add('hidden');
     if (state.isHost) {
-      guestOverlay.classList.add('hidden');
       settingBtns.forEach(b => { b.disabled = false; b.style.pointerEvents = 'auto'; });
     } else {
-      if (guestPlayer) {
-        guestOverlay.classList.remove('hidden');
-        settingBtns.forEach(b => { b.disabled = true; b.style.pointerEvents = 'none'; });
-      }
+      settingBtns.forEach(b => { b.disabled = true; b.style.pointerEvents = 'none'; });
     }
   }
 
