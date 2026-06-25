@@ -116,19 +116,21 @@
       font-size: 0.65rem;
       text-transform: uppercase;
       letter-spacing: 0.05em;
-      color: rgba(156, 163, 175, 0.5);
+      color: rgba(156, 163, 175, 0.8);
       transition: all 0.3s;
       cursor: pointer;
-      padding: 2px 8px;
+      padding: 3px 10px;
       border-radius: 4px;
-      border: 1px solid transparent;
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      background: rgba(255, 255, 255, 0.07);
     }
     .guess-toggle-btn:hover {
-      color: rgba(156, 163, 175, 0.8);
+      background: rgba(255, 255, 255, 0.12);
+      border-color: rgba(255, 255, 255, 0.15);
     }
     .guess-toggle-btn.active {
-      color: rgba(156, 163, 175, 0.35);
-      border-color: rgba(156, 163, 175, 0.15);
+      color: rgba(156, 163, 175, 0.5);
+      border-color: rgba(255, 255, 255, 0.04);
       background: rgba(255, 255, 255, 0.03);
     }
     #guess-history.hide-opponent .guess-entry:not(.yours) {
