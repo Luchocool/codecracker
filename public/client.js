@@ -28,6 +28,7 @@
 
   let codeDials = [];
   let guessDials = [];
+  let mySecretCode = '';
 
   // --- DOM refs ---
   const $ = (id) => document.getElementById(id);
@@ -53,6 +54,8 @@
   const btnLobbyLeave = $('btn-lobby-leave');
   const turnBanner = $('turn-banner');
   const turnText = $('turn-text');
+  const yourCodeDisplay = $('your-code-display');
+  const yourCodeValue = $('your-code-value');
   const phaseSetCode = $('phase-set-code');
   const phaseGuessing = $('phase-guessing');
   const phaseGameover = $('phase-gameover');
@@ -406,6 +409,8 @@
     guessHistoryContainer.classList.remove('hidden');
     guessHistoryEl.innerHTML = '';
     turnBanner.classList.remove('hidden');
+    yourCodeValue.textContent = mySecretCode;
+    yourCodeDisplay.classList.remove('hidden');
 
     // Create guess dials
     guessDials = createDials(guessDialsContainer, state.codeLength);
@@ -433,6 +438,7 @@
     phaseGuessing.classList.remove('hidden');
     guessHistoryContainer.classList.remove('hidden');
     turnBanner.classList.remove('hidden');
+    yourCodeDisplay.classList.remove('hidden');
     btnSubmitGuess.classList.remove('hidden');
 
     if (data.currentTurnId === state.playerId) {
@@ -452,6 +458,7 @@
   socket.on('guess-result', (data) => {
     addGuessToHistory(data.guessEntry);
     state.guessHistory = data.roomState.guessHistory;
+    yourCodeDisplay.classList.remove('hidden');
 
     if (data.currentTurnId === state.playerId) {
       turnBanner.className = 'text-center mb-6 py-3 px-4 rounded-xl neon-glow-green';
@@ -650,6 +657,7 @@
   // Game - Submit code
   btnSubmitCode.addEventListener('click', () => {
     const code = getDialValues(codeDials);
+    mySecretCode = code;
     if (code.length !== state.codeLength) return;
     btnSubmitCode.disabled = true;
     btnSubmitCode.textContent = 'Submitting...';
