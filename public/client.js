@@ -569,14 +569,19 @@
 
   socket.on('reset-for-rematch', (data) => {
     state.gameState = 'waiting';
-    state.ready = false;
+    state.ready = data.roomState.players[state.playerId]?.ready ?? false;
     state.myCodeSubmitted = false;
     state.guessHistory = [];
     state.winnerId = null;
     state.currentTurnId = null;
 
-    btnReady.textContent = 'READY';
-    btnReady.className = 'btn-base btn-success w-full text-lg mt-6 py-4';
+    if (state.ready) {
+      btnReady.textContent = '✅ READY!';
+      btnReady.className = 'btn-base btn-success w-full text-lg mt-6 py-4 opacity-60';
+    } else {
+      btnReady.textContent = 'READY';
+      btnReady.className = 'btn-base btn-success w-full text-lg mt-6 py-4';
+    }
 
     phaseGameover.classList.add('hidden');
     showView('view-lobby');

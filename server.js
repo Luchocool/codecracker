@@ -235,8 +235,14 @@ io.on('connection', (socket) => {
     if (!room || !room.players[socket.id]) return;
     if (room.gameState !== 'finished') return;
 
-    room.players[socket.id].ready = false;
+    room.players[socket.id].ready = true;
     room.players[socket.id].code = null;
+    for (const id of Object.keys(room.players)) {
+      if (id !== socket.id) {
+        room.players[id].ready = false;
+        room.players[id].code = null;
+      }
+    }
     room.guessHistory = [];
     room.winner = null;
     room.gameState = 'waiting';
