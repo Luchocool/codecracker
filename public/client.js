@@ -606,7 +606,7 @@
   socket.on('receive-emote', (data) => {
     emoteDisplayText.textContent = `${data.playerName} sent: ${data.emoji}`;
     emoteDisplay.classList.remove('hidden');
-    setTimeout(() => emoteDisplay.classList.add('hidden'), 10000);
+    setTimeout(() => emoteDisplay.classList.add('hidden'), 6000);
   });
 
   // --- UI Event Handlers ---
@@ -803,8 +803,8 @@
       socket.emit('send-emote', { emoji });
       emoteDisplayText.textContent = `Sent: ${emoji}`;
       emoteDisplay.classList.remove('hidden');
-      setTimeout(() => emoteDisplay.classList.add('hidden'), 10000);
-      emotePicker.classList.add('hidden');
+    setTimeout(() => emoteDisplay.classList.add('hidden'), 6000);
+    emotePicker.classList.add('hidden');
     });
   });
 
