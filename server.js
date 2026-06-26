@@ -230,6 +230,16 @@ io.on('connection', (socket) => {
     }
   });
 
+  socket.on('send-emote', ({ emoji }) => {
+    if (!currentRoom) return;
+    const room = rooms[currentRoom];
+    if (!room || !room.players[socket.id]) return;
+    socket.to(currentRoom).emit('receive-emote', {
+      emoji,
+      playerName: room.players[socket.id].name,
+    });
+  });
+
   socket.on('play-again', () => {
     if (!currentRoom) return;
     const room = rooms[currentRoom];

@@ -263,6 +263,85 @@
       .dial-digit .dial-arrow { padding: 3px 8px; font-size: 12px; }
       .dial-container { gap: 5px; }
     }
+    .emote-btn {
+      position: fixed;
+      right: 0;
+      top: 50%;
+      transform: translateY(-50%);
+      z-index: 40;
+      width: 48px;
+      height: 48px;
+      border-radius: 12px 0 0 12px;
+      cursor: pointer;
+      border: 1px solid rgba(255,255,255,0.1);
+      border-right: none;
+      background: rgba(10,10,15,0.85);
+      backdrop-filter: blur(8px);
+      padding: 6px;
+      transition: all 0.2s;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .emote-btn:hover {
+      background: rgba(30,30,40,0.95);
+      border-color: rgba(255,255,255,0.2);
+      width: 54px;
+    }
+    .emote-picker-overlay {
+      position: fixed;
+      inset: 0;
+      z-index: 50;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: rgba(0,0,0,0.5);
+      backdrop-filter: blur(4px);
+    }
+    .emote-picker-box {
+      background: #1a1a24;
+      border: 1px solid rgba(255,255,255,0.1);
+      border-radius: 16px;
+      padding: 20px;
+      box-shadow: 0 20px 60px rgba(0,0,0,0.5);
+    }
+    .emote-option {
+      width: 64px;
+      height: 64px;
+      font-size: 32px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      border-radius: 12px;
+      background: rgba(255,255,255,0.04);
+      border: 1px solid rgba(255,255,255,0.06);
+      cursor: pointer;
+      transition: all 0.15s;
+    }
+    .emote-option:hover {
+      background: rgba(255,255,255,0.1);
+      border-color: rgba(255,255,255,0.2);
+      transform: scale(1.1);
+    }
+    .emote-close {
+      background: rgba(239,68,68,0.15);
+      color: #ef4444;
+      border: 1px solid rgba(239,68,68,0.3);
+      border-radius: 8px;
+      width: 28px;
+      height: 28px;
+      font-size: 14px;
+      font-weight: 700;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: all 0.15s;
+      line-height: 1;
+    }
+    .emote-close:hover {
+      background: rgba(239,68,68,0.3);
+    }
   </style>
 </head>
 <body class="flex items-center justify-center p-4 min-h-screen">
@@ -373,6 +452,11 @@
   <div id="view-game" class="view flex-col items-center w-full max-w-2xl">
     <div class="w-full glass rounded-2xl p-6 md:p-8 neon-glow fade-slide-in">
 
+      <!-- Emote Display -->
+      <div id="emote-display" class="text-center mb-2 hidden">
+        <span id="emote-display-text" class="text-sm text-gray-300"></span>
+      </div>
+
       <!-- Your Code Display -->
       <div id="your-code-display" class="text-center mb-3 hidden">
         <span class="text-gray-400 text-xs uppercase tracking-wider">Your Code</span>
@@ -458,6 +542,28 @@
         <div class="text-4xl mb-4">⏳</div>
         <p class="text-xl font-semibold text-gray-300">Waiting for opponent to set their code...</p>
         <p class="text-gray-500 text-sm mt-2">The game starts once both players have submitted</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============ EMOTE BUTTON (fixed) ============ -->
+  <div class="emote-btn" id="btn-emote">
+    <img src="Emote.jpg" alt="Emotes" class="w-full h-full object-contain">
+  </div>
+
+  <!-- ============ EMOTE PICKER ============ -->
+  <div id="emote-picker" class="emote-picker-overlay hidden">
+    <div class="emote-picker-box">
+      <div class="flex justify-between items-center mb-3">
+        <span class="text-sm text-gray-400 font-semibold uppercase tracking-wider">Send Emote</span>
+        <button id="btn-close-emote" class="emote-close">✕</button>
+      </div>
+      <div class="grid grid-cols-3 gap-3">
+        <button class="emote-option" data-emote="😁">😁</button>
+        <button class="emote-option" data-emote="🤔">🤔</button>
+        <button class="emote-option" data-emote="😢">😢</button>
+        <button class="emote-option" data-emote="😡">😡</button>
+        <button class="emote-option" data-emote="🤓">🤓</button>
       </div>
     </div>
   </div>

@@ -77,6 +77,12 @@
   const gameoverHistory = $('gameover-history');
   const btnPlayAgain = $('btn-play-again');
   const btnBackLobby = $('btn-back-lobby');
+  const btnEmote = $('btn-emote');
+  const emotePicker = $('emote-picker');
+  const btnCloseEmote = $('btn-close-emote');
+  const emoteOptions = document.querySelectorAll('.emote-option');
+  const emoteDisplay = $('emote-display');
+  const emoteDisplayText = $('emote-display-text');
 
   // --- View switching ---
   function showView(viewId) {
@@ -396,6 +402,7 @@
     turnBanner.classList.add('hidden');
     btnSubmitGuess.classList.add('hidden');
     yourCodeDisplay.classList.add('hidden');
+    emoteDisplay.classList.add('hidden');
 
     // Create code dials
     codeDials = createDials(codeDialsContainer, state.codeLength);
@@ -530,6 +537,7 @@
     waitingCodeOverlay.classList.add('hidden');
     turnBanner.classList.add('hidden');
     phaseGameover.classList.remove('hidden');
+    emoteDisplay.classList.add('hidden');
 
     const isWinner = data.winnerId === state.playerId;
 
@@ -584,11 +592,18 @@
       btnReady.className = 'btn-base btn-success w-full text-lg mt-6 py-4';
     }
 
+    emoteDisplay.classList.add('hidden');
     phaseGameover.classList.add('hidden');
     showView('view-lobby');
 
     updateLobbyUI(data.roomState);
     updateReadyStatus(data.roomState);
+  });
+
+  socket.on('receive-emote', (data) => {
+    emoteDisplayText.textContent = `${data.playerName} sent: ${data.emoji}`;
+    emoteDisplay.classList.remove('hidden');
+    setTimeout(() => emoteDisplay.classList.add('hidden'), 10000);
   });
 
   // --- UI Event Handlers ---
@@ -767,6 +782,26 @@
   document.getElementById('exclusion-grid').addEventListener('click', (e) => {
     const tile = e.target.closest('.exclusion-tile');
     if (tile) tile.classList.toggle('excluded');
+  });
+
+  // Emote - Toggle picker
+  btnEmote.addEventListener('click', () => {
+    emotePicker.classList.toggle('hidden');
+  });
+
+  btnCloseEmote.addEventListener('click', () => {
+    emotePicker.classList.add('hidden');
+  });
+
+  emoteOptions.forEach(el => {
+    el.addEventListener('click', () => {
+      const emoji = el.dataset.emote;
+      socket.emit('send-emote', { emoji });
+      emoteDisplayText.textContent = `Sent: ${emoji}`;
+      emoteDisplay.classList.remove('hidden');
+      setTimeout(() => emoteDisplay.classList.add('hidden'), 10000);
+      emotePicker.classList.add('hidden');
+    });
   });
 
   // Game Over - Play Again
