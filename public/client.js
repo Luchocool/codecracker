@@ -542,7 +542,7 @@
       gameoverIcon.textContent = '😔';
       gameoverTitle.textContent = 'Your Opponent Cracked the Code!';
       gameoverTitle.className = 'text-3xl font-bold mb-2 text-red-400';
-      gameoverSubtitle.textContent = 'Better luck next time!';
+      gameoverSubtitle.textContent = `Their code was ${data.winnerCode}`;
     }
 
     // Show full history in game over

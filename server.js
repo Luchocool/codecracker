@@ -217,6 +217,7 @@ io.on('connection', (socket) => {
       room.winner = socket.id;
       io.in(currentRoom).emit('game-over', {
         winnerId: socket.id,
+        winnerCode: room.players[socket.id].code,
         roomState: getRoomState(currentRoom),
       });
     } else {
