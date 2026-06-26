@@ -435,6 +435,7 @@
       }
     }, 1000);
 
+    btnEmote.classList.remove('hidden');
     showView('view-game');
   });
 
@@ -537,6 +538,7 @@
     waitingCodeOverlay.classList.add('hidden');
     turnBanner.classList.add('hidden');
     phaseGameover.classList.remove('hidden');
+    btnEmote.classList.add('hidden');
     emoteDisplay.classList.add('hidden');
 
     const isWinner = data.winnerId === state.playerId;
@@ -592,6 +594,7 @@
       btnReady.className = 'btn-base btn-success w-full text-lg mt-6 py-4';
     }
 
+    btnEmote.classList.add('hidden');
     emoteDisplay.classList.add('hidden');
     phaseGameover.classList.add('hidden');
     showView('view-lobby');
@@ -716,6 +719,7 @@
     btnReady.textContent = 'READY';
     btnReady.className = 'btn-base btn-success w-full text-lg mt-6 py-4';
     readyStatus.classList.add('hidden');
+    btnEmote.classList.add('hidden');
 
     showView('view-home');
   }

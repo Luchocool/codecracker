@@ -273,10 +273,8 @@
       height: 48px;
       border-radius: 12px 0 0 12px;
       cursor: pointer;
-      border: 1px solid rgba(255,255,255,0.1);
-      border-right: none;
-      background: rgba(10,10,15,0.85);
-      backdrop-filter: blur(8px);
+      border: none;
+      background: transparent;
       padding: 6px;
       transition: all 0.2s;
       display: flex;
@@ -284,8 +282,6 @@
       justify-content: center;
     }
     .emote-btn:hover {
-      background: rgba(30,30,40,0.95);
-      border-color: rgba(255,255,255,0.2);
       width: 54px;
     }
     .emote-picker-overlay {
@@ -547,7 +543,7 @@
   </div>
 
   <!-- ============ EMOTE BUTTON (fixed) ============ -->
-  <div class="emote-btn" id="btn-emote">
+  <div class="emote-btn hidden" id="btn-emote">
     <img src="Emote.jpg" alt="Emotes" class="w-full h-full object-contain">
   </div>
 
