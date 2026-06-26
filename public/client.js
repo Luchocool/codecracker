@@ -395,6 +395,7 @@
     guessHistoryContainer.classList.add('hidden');
     turnBanner.classList.add('hidden');
     btnSubmitGuess.classList.add('hidden');
+    yourCodeDisplay.classList.add('hidden');
 
     // Create code dials
     codeDials = createDials(codeDialsContainer, state.codeLength);
