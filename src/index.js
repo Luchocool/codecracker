@@ -83,7 +83,16 @@ export default {
 
       const id = env.ROOM.idFromName(roomCode);
       const stub = env.ROOM.get(id);
-      return stub.fetch(request);
+
+      const forwardReq = new Request(request.url, {
+        method: request.method,
+        headers: request.headers,
+        body: request.body,
+      });
+      forwardReq.headers.set('X-Room-Code', roomCode);
+      forwardReq.headers.set('X-Player-Id', playerId);
+
+      return stub.fetch(forwardReq);
     }
 
     // ---- Static assets (Workers Sites) ----

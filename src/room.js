@@ -119,11 +119,6 @@ export class Room {
     }
 
     // ---- WebSocket upgrade ----
-    const playerId = url.searchParams.get('playerId');
-    if (!playerId) {
-      return new Response('Missing playerId', { status: 400 });
-    }
-
     if (request.headers.get('Upgrade') !== 'websocket') {
       return new Response('Expected websocket', { status: 426 });
     }
@@ -137,6 +132,12 @@ export class Room {
         status: 404,
         headers: { 'Content-Type': 'application/json' },
       });
+    }
+
+    const playerId = url.searchParams.get('playerId') || request.headers.get('X-Player-Id');
+    const roomCode = url.searchParams.get('roomCode') || request.headers.get('X-Room-Code');
+    if (!playerId || !roomCode) {
+      return new Response('Missing playerId', { status: 400 });
     }
 
     const pair = new WebSocketPair();
