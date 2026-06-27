@@ -1,2 +1,4 @@
 User-agent: *
 Allow: /
+
+Sitemap: https://codecracker-pn81.onrender.com/sitemap.xml
