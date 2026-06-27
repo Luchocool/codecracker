@@ -72,11 +72,10 @@ export class Room {
   }
 
   async fetch(request) {
-    const url = new URL(request.url);
-    const path = url.pathname;
+    // ---- HTTP endpoints for room management (header-routed) ----
+    const action = request.headers.get('X-DO-Action');
 
-    // ---- HTTP endpoints for room management ----
-    if (path === '/check' && request.method === 'GET') {
+    if (action === 'check' && request.method === 'GET') {
       if (!this.room) {
         this.room = await this.state.storage.get('room');
       }
@@ -101,7 +100,7 @@ export class Room {
       });
     }
 
-    if (path === '/init' && request.method === 'POST') {
+    if (action === 'init' && request.method === 'POST') {
       if (!this.room) {
         this.room = await this.state.storage.get('room');
       }
@@ -118,7 +117,7 @@ export class Room {
       });
     }
 
-    // ---- WebSocket upgrade ----
+    // ---- WebSocket upgrade (or any request with Upgrade header) ----
     if (request.headers.get('Upgrade') !== 'websocket') {
       return new Response('Expected websocket', { status: 426 });
     }
@@ -134,8 +133,8 @@ export class Room {
       });
     }
 
-    const playerId = url.searchParams.get('playerId') || request.headers.get('X-Player-Id');
-    const roomCode = url.searchParams.get('roomCode') || request.headers.get('X-Room-Code');
+    const playerId = request.headers.get('X-Player-Id');
+    const roomCode = request.headers.get('X-Room-Code');
     if (!playerId || !roomCode) {
       return new Response('Missing playerId', { status: 400 });
     }

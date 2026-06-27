@@ -19,13 +19,14 @@ export default {
     // ---- HTTP API ----
     if (path === '/api/create-room' && request.method === 'POST') {
       let roomCode;
-      let id;
       let playerId;
       for (let attempt = 0; attempt < 10; attempt++) {
         roomCode = generateRoomCode();
-        id = env.ROOM.idFromName(roomCode);
+        const id = env.ROOM.idFromName(roomCode);
         const stub = env.ROOM.get(id);
-        const initRes = await stub.fetch('http://dummy/init', { method: 'POST' });
+        const req = new Request('http://dummy', { method: 'POST' });
+        req.headers.set('X-DO-Action', 'init');
+        const initRes = await stub.fetch(req);
         if (initRes.ok) {
           const data = await initRes.json();
           playerId = data.playerId;
@@ -56,7 +57,9 @@ export default {
 
       const id = env.ROOM.idFromName(roomCode);
       const stub = env.ROOM.get(id);
-      const joinRes = await stub.fetch('http://dummy/check');
+      const req = new Request('http://dummy', { method: 'GET' });
+      req.headers.set('X-DO-Action', 'check');
+      const joinRes = await stub.fetch(req);
 
       if (joinRes.status !== 200) {
         const { error } = await joinRes.json();
