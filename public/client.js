@@ -1,14 +1,22 @@
 (function () {
   'use strict';
 
-  const socket = io({
-    transports: ['polling', 'websocket'],
-    reconnectionAttempts: Infinity,
-    reconnectionDelay: 500,
-    reconnectionDelayMax: 2000,
-  });
+  const WS_URL = (() => {
+    const loc = window.location;
+    const proto = loc.protocol === 'https:' ? 'wss:' : 'ws:';
+    return `${proto}//${loc.host}/ws`;
+  })();
 
+  const API_URL = (() => {
+    const loc = window.location;
+    return `${loc.protocol}//${loc.host}`;
+  })();
+
+  let ws = null;
   let connected = false;
+  let reconnectTimer = null;
+  let roomCode = null;
+  let playerId = null;
 
   // --- State ---
   let state = {
@@ -187,6 +195,396 @@
     }
   }
 
+  // --- WebSocket ---
+  function connectWebSocket(code, pid) {
+    if (ws) {
+      roomCode = null;
+      playerId = null;
+      ws.close();
+      ws = null;
+    }
+
+    roomCode = code;
+    playerId = pid;
+
+    const url = `${WS_URL}?roomCode=${encodeURIComponent(code)}&playerId=${encodeURIComponent(pid)}`;
+    ws = new WebSocket(url);
+
+    ws.onopen = () => {
+      connected = true;
+      btnPlay.disabled = false;
+      btnPlay.textContent = '▶ PLAY';
+      btnPlay.className = 'btn-base btn-primary w-full text-lg py-4';
+      const cs = document.getElementById('conn-status');
+      if (cs) cs.remove();
+    };
+
+    ws.onclose = () => {
+      connected = false;
+      scheduleReconnect();
+    };
+
+    ws.onerror = () => {
+      if (!connected) {
+        btnPlay.disabled = true;
+        btnPlay.textContent = '⚠ Connecting...';
+        btnPlay.className = 'btn-base btn-ghost w-full text-lg py-4 cursor-wait';
+      }
+    };
+
+    ws.onmessage = (event) => {
+      try {
+        const msg = JSON.parse(event.data);
+        handleServerMessage(msg);
+      } catch (e) {
+        console.error('Invalid message:', e);
+      }
+    };
+  }
+
+  function scheduleReconnect() {
+    if (reconnectTimer) return;
+    if (!roomCode || !playerId) return;
+    reconnectTimer = setTimeout(() => {
+      reconnectTimer = null;
+      connectWebSocket(roomCode, playerId);
+    }, 1000);
+  }
+
+  function wsSend(type, payload = {}) {
+    if (ws && ws.readyState === WebSocket.OPEN) {
+      ws.send(JSON.stringify({ type, ...payload }));
+    }
+  }
+
+  // --- Server message handler ---
+  function handleServerMessage(msg) {
+    switch (msg.type) {
+      case 'room-created': {
+        state.roomId = msg.roomId;
+        state.playerId = msg.playerId;
+        state.isHost = true;
+        state.myName = 'Player 1';
+        state.opponentName = '';
+
+        roomCodeDisplay.textContent = msg.roomId;
+        showView('view-lobby');
+        updateLobbyUI(msg.roomState);
+        updateReadyStatus(msg.roomState);
+        break;
+      }
+
+      case 'room-joined': {
+        state.roomId = msg.roomId;
+        state.playerId = msg.playerId;
+        state.isHost = false;
+        state.myName = 'Player 2';
+
+        roomCodeDisplay.textContent = msg.roomId;
+        showView('view-lobby');
+        updateLobbyUI(msg.roomState);
+        updateReadyStatus(msg.roomState);
+        break;
+      }
+
+      case 'room-error': {
+        joinError.textContent = msg.message;
+        joinError.classList.remove('hidden');
+        setTimeout(() => joinError.classList.add('hidden'), 4000);
+        break;
+      }
+
+      case 'player-joined': {
+        updateLobbyUI(msg.roomState);
+        updateReadyStatus(msg.roomState);
+        break;
+      }
+
+      case 'player-left': {
+        if (state.gameState !== 'waiting') {
+          state.gameState = 'waiting';
+          state.ready = false;
+          state.myCodeSubmitted = false;
+          btnReady.textContent = 'READY';
+          btnReady.className = 'btn-base btn-success w-full text-lg mt-6 py-4';
+          showView('view-lobby');
+        }
+        updateLobbyUI(msg.roomState);
+        updateReadyStatus(msg.roomState);
+        break;
+      }
+
+      case 'host-transferred': {
+        state.isHost = true;
+        if (state.gameState !== 'waiting') {
+          state.gameState = 'waiting';
+          state.ready = false;
+          state.myCodeSubmitted = false;
+          btnReady.textContent = 'READY';
+          btnReady.className = 'btn-base btn-success w-full text-lg mt-6 py-4';
+          showView('view-lobby');
+        }
+        updateLobbyUI(msg.roomState);
+        updateReadyStatus(msg.roomState);
+        break;
+      }
+
+      case 'name-updated': {
+        const players = msg.roomState.players;
+        for (const id of Object.keys(players)) {
+          if (id !== state.playerId) {
+            if (players[id].isHost) {
+              inputNameHost.value = players[id].name;
+            } else {
+              inputNameGuest.value = players[id].name;
+            }
+          }
+        }
+        break;
+      }
+
+      case 'setting-updated': {
+        updateLobbyUI(msg.roomState);
+        break;
+      }
+
+      case 'ready-updated': {
+        if (msg.playerId === state.playerId) {
+          state.ready = msg.ready;
+        }
+        if (msg.roomState) {
+          updateLobbyUI(msg.roomState);
+          updateReadyStatus(msg.roomState);
+        }
+        break;
+      }
+
+      case 'game-start': {
+        state.gameState = 'setting-codes';
+        state.myCodeSubmitted = false;
+        state.guessHistory = [];
+
+        phaseSetCode.classList.remove('hidden');
+        phaseGuessing.classList.add('hidden');
+        phaseGameover.classList.add('hidden');
+        waitingCodeOverlay.classList.add('hidden');
+        guessHistoryContainer.classList.add('hidden');
+        turnBanner.classList.add('hidden');
+        btnSubmitGuess.classList.add('hidden');
+        yourCodeDisplay.classList.add('hidden');
+        emoteDisplay.classList.add('hidden');
+
+        codeDials = createDials(codeDialsContainer, state.codeLength);
+        resetDials(codeDials);
+        syncDialDisplay(codeDialsContainer, codeDials);
+
+        btnSubmitCode.disabled = false;
+        btnSubmitCode.textContent = 'SUBMIT';
+        submitCodeStatus.classList.add('hidden');
+
+        clearInterval(codeTimer);
+        let seconds = 60;
+        codeTimerEl.textContent = '01:00';
+        codeTimerEl.classList.remove('hidden');
+        codeTimer = setInterval(() => {
+          seconds--;
+          const m = String(Math.floor(seconds / 60)).padStart(2, '0');
+          const s = String(seconds % 60).padStart(2, '0');
+          codeTimerEl.textContent = `${m}:${s}`;
+          if (seconds <= 0) {
+            clearInterval(codeTimer);
+            codeTimerEl.classList.add('hidden');
+            const changedCount = codeDials.filter(v => v !== 0).length;
+            const code = changedCount >= 2 ? getDialValues(codeDials) : Array.from({ length: state.codeLength }, () => Math.floor(Math.random() * 10)).join('');
+            mySecretCode = code;
+            btnSubmitCode.disabled = true;
+            btnSubmitCode.textContent = 'Submitting...';
+            wsSend('submit-code', { code });
+          }
+        }, 1000);
+
+        btnEmote.classList.remove('hidden');
+        showView('view-game');
+        break;
+      }
+
+      case 'code-submitted': {
+        clearInterval(codeTimer);
+        codeTimerEl.classList.add('hidden');
+        state.myCodeSubmitted = true;
+        btnSubmitCode.disabled = true;
+        btnSubmitCode.textContent = '✅ Code Submitted';
+        submitCodeStatus.textContent = 'Your code is locked in! Waiting for opponent...';
+        submitCodeStatus.className = 'text-center text-sm text-green-400 mt-3';
+        submitCodeStatus.classList.remove('hidden');
+        phaseSetCode.classList.add('hidden');
+        waitingCodeOverlay.classList.remove('hidden');
+        break;
+      }
+
+      case 'both-codes-submitted': {
+        state.gameState = 'guessing';
+        phaseSetCode.classList.add('hidden');
+        waitingCodeOverlay.classList.add('hidden');
+        phaseGuessing.classList.remove('hidden');
+        guessHistoryContainer.classList.remove('hidden');
+        guessHistoryEl.innerHTML = '';
+        turnBanner.classList.remove('hidden');
+        yourCodeValue.textContent = mySecretCode;
+        yourCodeDisplay.classList.remove('hidden');
+
+        guessDials = createDials(guessDialsContainer, state.codeLength);
+        resetDials(guessDials);
+        syncDialDisplay(guessDialsContainer, guessDials);
+
+        if (msg.roomState.currentTurn === state.playerId) {
+          turnBanner.className = 'text-center mb-6 py-3 px-4 rounded-xl neon-glow-green';
+          turnText.innerHTML = '🎯 Your Turn! Make a guess.';
+          btnSubmitGuess.classList.remove('hidden');
+          btnSubmitGuess.disabled = false;
+          guessStatus.classList.add('hidden');
+        } else {
+          turnBanner.className = 'text-center mb-6 py-3 px-4 rounded-xl glass-strong';
+          turnText.innerHTML = '⏳ Waiting for the opps...';
+          btnSubmitGuess.classList.add('hidden');
+          guessStatus.classList.add('hidden');
+        }
+        break;
+      }
+
+      case 'turn-change': {
+        state.currentTurnId = msg.currentTurnId;
+        phaseSetCode.classList.add('hidden');
+        waitingCodeOverlay.classList.add('hidden');
+        phaseGuessing.classList.remove('hidden');
+        guessHistoryContainer.classList.remove('hidden');
+        turnBanner.classList.remove('hidden');
+        yourCodeDisplay.classList.remove('hidden');
+        btnSubmitGuess.classList.remove('hidden');
+
+        if (msg.currentTurnId === state.playerId) {
+          turnBanner.className = 'text-center mb-6 py-3 px-4 rounded-xl neon-glow-green';
+          turnText.innerHTML = '🎯 Your Turn! Make a guess.';
+          btnSubmitGuess.disabled = false;
+          guessStatus.classList.add('hidden');
+          guessStatus.textContent = '';
+        } else {
+          turnBanner.className = 'text-center mb-6 py-3 px-4 rounded-xl glass-strong';
+          turnText.innerHTML = '⏳ Waiting for the opps...';
+          btnSubmitGuess.disabled = true;
+          guessStatus.textContent = '';
+        }
+        break;
+      }
+
+      case 'guess-result': {
+        addGuessToHistory(msg.guessEntry);
+        state.guessHistory = msg.roomState.guessHistory;
+        yourCodeDisplay.classList.remove('hidden');
+
+        if (msg.currentTurnId === state.playerId) {
+          turnBanner.className = 'text-center mb-6 py-3 px-4 rounded-xl neon-glow-green';
+          turnText.innerHTML = '🎯 Your Turn! Make a guess.';
+          btnSubmitGuess.disabled = false;
+          btnSubmitGuess.classList.remove('hidden');
+          guessStatus.classList.add('hidden');
+
+          resetDials(guessDials);
+          syncDialDisplay(guessDialsContainer, guessDials);
+        } else {
+          turnBanner.className = 'text-center mb-6 py-3 px-4 rounded-xl glass-strong';
+          turnText.innerHTML = '⏳ Waiting for the opps...';
+          btnSubmitGuess.disabled = true;
+          guessStatus.classList.add('hidden');
+        }
+        break;
+      }
+
+      case 'game-over': {
+        state.gameState = 'finished';
+        state.winnerId = msg.winnerId;
+        state.guessHistory = msg.roomState.guessHistory;
+
+        phaseSetCode.classList.add('hidden');
+        phaseGuessing.classList.add('hidden');
+        waitingCodeOverlay.classList.add('hidden');
+        turnBanner.classList.add('hidden');
+        phaseGameover.classList.remove('hidden');
+        btnEmote.classList.add('hidden');
+        emoteDisplay.classList.add('hidden');
+
+        const isWinner = msg.winnerId === state.playerId;
+
+        if (isWinner) {
+          gameoverIcon.textContent = '🏆';
+          gameoverTitle.textContent = 'You Cracked the Code!';
+          gameoverTitle.className = 'text-3xl font-bold mb-2 text-green-400';
+          gameoverSubtitle.textContent = 'Congratulations! You win!';
+        } else {
+          gameoverIcon.textContent = '😔';
+          gameoverTitle.textContent = 'Your Opponent Cracked the Code!';
+          gameoverTitle.className = 'text-3xl font-bold mb-2 text-red-400';
+          gameoverSubtitle.textContent = `Their code was ${msg.winnerCode}`;
+        }
+
+        gameoverHistory.innerHTML = '';
+        msg.roomState.guessHistory.forEach(entry => {
+          const el = document.createElement('div');
+          const isMyGuess = entry.playerId === state.playerId;
+          const playerName = isMyGuess ? 'You' : 'Opponent';
+          el.className = `guess-entry ${entry.isWin ? 'win' : ''}`;
+          el.innerHTML = `
+            <div class="flex justify-between items-center">
+              <span class="text-sm text-gray-400">${playerName}</span>
+              <span class="guess-numbers text-${entry.isWin ? 'green' : 'blue'}-400">${entry.guess}</span>
+            </div>
+            <div class="text-sm mt-1">
+              <span class="text-green-400">● ${entry.correctPosition} correct position${entry.correctPosition !== 1 ? 's' : ''}</span>
+              <span class="mx-2 text-gray-600">|</span>
+              <span class="text-yellow-400">● ${entry.correctNumberWrongPosition} correct number${entry.correctNumberWrongPosition !== 1 ? 's' : ''} wrong position</span>
+              ${entry.isWin ? '<span class="ml-2 text-green-400 font-bold">✓ WINNER!</span>' : ''}
+            </div>
+          `;
+          gameoverHistory.appendChild(el);
+        });
+        break;
+      }
+
+      case 'reset-for-rematch': {
+        state.gameState = 'waiting';
+        state.ready = msg.roomState.players[state.playerId]?.ready ?? false;
+        state.myCodeSubmitted = false;
+        state.guessHistory = [];
+        state.winnerId = null;
+        state.currentTurnId = null;
+
+        if (state.ready) {
+          btnReady.textContent = '✅ READY!';
+          btnReady.className = 'btn-base btn-success w-full text-lg mt-6 py-4 opacity-60';
+        } else {
+          btnReady.textContent = 'READY';
+          btnReady.className = 'btn-base btn-success w-full text-lg mt-6 py-4';
+        }
+
+        btnEmote.classList.add('hidden');
+        emoteDisplay.classList.add('hidden');
+        phaseGameover.classList.add('hidden');
+        showView('view-lobby');
+
+        updateLobbyUI(msg.roomState);
+        updateReadyStatus(msg.roomState);
+        break;
+      }
+
+      case 'receive-emote': {
+        emoteDisplayText.textContent = `${msg.playerName} sent: ${msg.emoji}`;
+        emoteDisplay.classList.remove('hidden');
+        setTimeout(() => emoteDisplay.classList.add('hidden'), 6000);
+        break;
+      }
+    }
+  }
+
   // --- UI Updates ---
   function updateLobbyUI(roomState) {
     if (!roomState) return;
@@ -210,7 +608,6 @@
       inputNameGuest.placeholder = 'Waiting for opponent...';
     }
 
-    // Ready indicators
     document.querySelectorAll('.player-slot').forEach(slot => {
       const isHost = slot.dataset.slot === 'host';
       const player = isHost ? hostPlayer : guestPlayer;
@@ -224,7 +621,6 @@
       }
     });
 
-    // Code length setting
     state.codeLength = roomState.settings.codeLength;
     settingBtns.forEach(btn => {
       const val = parseInt(btn.dataset.value);
@@ -278,337 +674,6 @@
     }
   }
 
-  // --- Socket Events ---
-  socket.on('connect', () => {
-    connected = true;
-    btnPlay.disabled = false;
-    btnPlay.textContent = '▶ PLAY';
-    btnPlay.className = 'btn-base btn-primary w-full text-lg py-4';
-    document.getElementById('conn-status')?.remove();
-  });
-
-  socket.on('disconnect', () => {
-    connected = false;
-  });
-
-  socket.on('connect_error', () => {
-    btnPlay.disabled = true;
-    btnPlay.textContent = '⚠ Connecting...';
-    btnPlay.className = 'btn-base btn-ghost w-full text-lg py-4 cursor-wait';
-  });
-
-  socket.on('room-created', (data) => {
-    state.roomId = data.roomId;
-    state.playerId = data.playerId;
-    state.isHost = true;
-    state.myName = 'Player 1';
-    state.opponentName = '';
-
-    roomCodeDisplay.textContent = data.roomId;
-    showView('view-lobby');
-    updateLobbyUI(data.roomState);
-    updateReadyStatus(data.roomState);
-  });
-
-  socket.on('room-joined', (data) => {
-    state.roomId = data.roomId;
-    state.playerId = data.playerId;
-    state.isHost = false;
-    state.myName = 'Player 2';
-
-    roomCodeDisplay.textContent = data.roomId;
-    showView('view-lobby');
-    updateLobbyUI(data.roomState);
-    updateReadyStatus(data.roomState);
-  });
-
-  socket.on('room-error', (data) => {
-    joinError.textContent = data.message;
-    joinError.classList.remove('hidden');
-    setTimeout(() => joinError.classList.add('hidden'), 4000);
-  });
-
-  socket.on('player-joined', (data) => {
-    updateLobbyUI(data.roomState);
-    updateReadyStatus(data.roomState);
-  });
-
-  socket.on('player-left', (data) => {
-    if (state.gameState !== 'waiting') {
-      state.gameState = 'waiting';
-      state.ready = false;
-      state.myCodeSubmitted = false;
-      btnReady.textContent = 'READY';
-      btnReady.className = 'btn-base btn-success w-full text-lg mt-6 py-4';
-      showView('view-lobby');
-    }
-    updateLobbyUI(data.roomState);
-    updateReadyStatus(data.roomState);
-  });
-
-  socket.on('host-transferred', (data) => {
-    state.isHost = true;
-    if (state.gameState !== 'waiting') {
-      state.gameState = 'waiting';
-      state.ready = false;
-      state.myCodeSubmitted = false;
-      btnReady.textContent = 'READY';
-      btnReady.className = 'btn-base btn-success w-full text-lg mt-6 py-4';
-      showView('view-lobby');
-    }
-    updateLobbyUI(data.roomState);
-    updateReadyStatus(data.roomState);
-  });
-
-  socket.on('name-updated', (data) => {
-    // Update opponent's name display
-    const players = data.roomState.players;
-    for (const id of Object.keys(players)) {
-      if (id !== state.playerId) {
-        if (players[id].isHost) {
-          inputNameHost.value = players[id].name;
-        } else {
-          inputNameGuest.value = players[id].name;
-        }
-      }
-    }
-  });
-
-  socket.on('setting-updated', (data) => {
-    updateLobbyUI(data.roomState);
-  });
-
-  socket.on('ready-updated', (data) => {
-    if (data.playerId === state.playerId) {
-      state.ready = data.ready;
-    }
-    if (data.roomState) {
-      updateLobbyUI(data.roomState);
-      updateReadyStatus(data.roomState);
-    }
-  });
-
-  socket.on('game-start', (data) => {
-    state.gameState = 'setting-codes';
-    state.myCodeSubmitted = false;
-    state.guessHistory = [];
-
-    // Reset phase visibility
-    phaseSetCode.classList.remove('hidden');
-    phaseGuessing.classList.add('hidden');
-    phaseGameover.classList.add('hidden');
-    waitingCodeOverlay.classList.add('hidden');
-    guessHistoryContainer.classList.add('hidden');
-    turnBanner.classList.add('hidden');
-    btnSubmitGuess.classList.add('hidden');
-    yourCodeDisplay.classList.add('hidden');
-    emoteDisplay.classList.add('hidden');
-
-    // Create code dials
-    codeDials = createDials(codeDialsContainer, state.codeLength);
-    resetDials(codeDials);
-    syncDialDisplay(codeDialsContainer, codeDials);
-
-    btnSubmitCode.disabled = false;
-    btnSubmitCode.textContent = 'SUBMIT';
-    submitCodeStatus.classList.add('hidden');
-
-    // Code timer
-    clearInterval(codeTimer);
-    let seconds = 60;
-    codeTimerEl.textContent = '01:00';
-    codeTimerEl.classList.remove('hidden');
-    codeTimer = setInterval(() => {
-      seconds--;
-      const m = String(Math.floor(seconds / 60)).padStart(2, '0');
-      const s = String(seconds % 60).padStart(2, '0');
-      codeTimerEl.textContent = `${m}:${s}`;
-      if (seconds <= 0) {
-        clearInterval(codeTimer);
-        codeTimerEl.classList.add('hidden');
-        const changedCount = codeDials.filter(v => v !== 0).length;
-        const code = changedCount >= 2 ? getDialValues(codeDials) : Array.from({ length: state.codeLength }, () => Math.floor(Math.random() * 10)).join('');
-        mySecretCode = code;
-        btnSubmitCode.disabled = true;
-        btnSubmitCode.textContent = 'Submitting...';
-        socket.emit('submit-code', { code });
-      }
-    }, 1000);
-
-    btnEmote.classList.remove('hidden');
-    showView('view-game');
-  });
-
-  socket.on('code-submitted', (data) => {
-    clearInterval(codeTimer);
-    codeTimerEl.classList.add('hidden');
-    state.myCodeSubmitted = true;
-    btnSubmitCode.disabled = true;
-    btnSubmitCode.textContent = '✅ Code Submitted';
-    submitCodeStatus.textContent = 'Your code is locked in! Waiting for opponent...';
-    submitCodeStatus.className = 'text-center text-sm text-green-400 mt-3';
-    submitCodeStatus.classList.remove('hidden');
-    phaseSetCode.classList.add('hidden');
-    waitingCodeOverlay.classList.remove('hidden');
-  });
-
-  socket.on('both-codes-submitted', (data) => {
-    state.gameState = 'guessing';
-    phaseSetCode.classList.add('hidden');
-    waitingCodeOverlay.classList.add('hidden');
-    phaseGuessing.classList.remove('hidden');
-    guessHistoryContainer.classList.remove('hidden');
-    guessHistoryEl.innerHTML = '';
-    turnBanner.classList.remove('hidden');
-    yourCodeValue.textContent = mySecretCode;
-    yourCodeDisplay.classList.remove('hidden');
-
-    // Create guess dials
-    guessDials = createDials(guessDialsContainer, state.codeLength);
-    resetDials(guessDials);
-    syncDialDisplay(guessDialsContainer, guessDials);
-
-    if (data.roomState.currentTurn === state.playerId) {
-      turnBanner.className = 'text-center mb-6 py-3 px-4 rounded-xl neon-glow-green';
-      turnText.innerHTML = '🎯 Your Turn! Make a guess.';
-      btnSubmitGuess.classList.remove('hidden');
-      btnSubmitGuess.disabled = false;
-      guessStatus.classList.add('hidden');
-    } else {
-      turnBanner.className = 'text-center mb-6 py-3 px-4 rounded-xl glass-strong';
-      turnText.innerHTML = '⏳ Waiting for the opps...';
-      btnSubmitGuess.classList.add('hidden');
-      guessStatus.classList.add('hidden');
-    }
-  });
-
-  socket.on('turn-change', (data) => {
-    state.currentTurnId = data.currentTurnId;
-    phaseSetCode.classList.add('hidden');
-    waitingCodeOverlay.classList.add('hidden');
-    phaseGuessing.classList.remove('hidden');
-    guessHistoryContainer.classList.remove('hidden');
-    turnBanner.classList.remove('hidden');
-    yourCodeDisplay.classList.remove('hidden');
-    btnSubmitGuess.classList.remove('hidden');
-
-    if (data.currentTurnId === state.playerId) {
-      turnBanner.className = 'text-center mb-6 py-3 px-4 rounded-xl neon-glow-green';
-      turnText.innerHTML = '🎯 Your Turn! Make a guess.';
-      btnSubmitGuess.disabled = false;
-      guessStatus.classList.add('hidden');
-      guessStatus.textContent = '';
-    } else {
-      turnBanner.className = 'text-center mb-6 py-3 px-4 rounded-xl glass-strong';
-      turnText.innerHTML = '⏳ Waiting for the opps...';
-      btnSubmitGuess.disabled = true;
-      guessStatus.textContent = '';
-    }
-  });
-
-  socket.on('guess-result', (data) => {
-    addGuessToHistory(data.guessEntry);
-    state.guessHistory = data.roomState.guessHistory;
-    yourCodeDisplay.classList.remove('hidden');
-
-    if (data.currentTurnId === state.playerId) {
-      turnBanner.className = 'text-center mb-6 py-3 px-4 rounded-xl neon-glow-green';
-      turnText.innerHTML = '🎯 Your Turn! Make a guess.';
-      btnSubmitGuess.disabled = false;
-      btnSubmitGuess.classList.remove('hidden');
-      guessStatus.classList.add('hidden');
-
-      resetDials(guessDials);
-      syncDialDisplay(guessDialsContainer, guessDials);
-    } else {
-      turnBanner.className = 'text-center mb-6 py-3 px-4 rounded-xl glass-strong';
-      turnText.innerHTML = '⏳ Waiting for the opps...';
-      btnSubmitGuess.disabled = true;
-      guessStatus.classList.add('hidden');
-    }
-  });
-
-  socket.on('game-over', (data) => {
-    state.gameState = 'finished';
-    state.winnerId = data.winnerId;
-    state.guessHistory = data.roomState.guessHistory;
-
-    phaseSetCode.classList.add('hidden');
-    phaseGuessing.classList.add('hidden');
-    waitingCodeOverlay.classList.add('hidden');
-    turnBanner.classList.add('hidden');
-    phaseGameover.classList.remove('hidden');
-    btnEmote.classList.add('hidden');
-    emoteDisplay.classList.add('hidden');
-
-    const isWinner = data.winnerId === state.playerId;
-
-    if (isWinner) {
-      gameoverIcon.textContent = '🏆';
-      gameoverTitle.textContent = 'You Cracked the Code!';
-      gameoverTitle.className = 'text-3xl font-bold mb-2 text-green-400';
-      gameoverSubtitle.textContent = 'Congratulations! You win!';
-    } else {
-      gameoverIcon.textContent = '😔';
-      gameoverTitle.textContent = 'Your Opponent Cracked the Code!';
-      gameoverTitle.className = 'text-3xl font-bold mb-2 text-red-400';
-      gameoverSubtitle.textContent = `Their code was ${data.winnerCode}`;
-    }
-
-    // Show full history in game over
-    gameoverHistory.innerHTML = '';
-    data.roomState.guessHistory.forEach(entry => {
-      const el = document.createElement('div');
-      const isMyGuess = entry.playerId === state.playerId;
-      const playerName = isMyGuess ? 'You' : 'Opponent';
-      el.className = `guess-entry ${entry.isWin ? 'win' : ''}`;
-      el.innerHTML = `
-        <div class="flex justify-between items-center">
-          <span class="text-sm text-gray-400">${playerName}</span>
-          <span class="guess-numbers text-${entry.isWin ? 'green' : 'blue'}-400">${entry.guess}</span>
-        </div>
-        <div class="text-sm mt-1">
-          <span class="text-green-400">● ${entry.correctPosition} correct position${entry.correctPosition !== 1 ? 's' : ''}</span>
-          <span class="mx-2 text-gray-600">|</span>
-          <span class="text-yellow-400">● ${entry.correctNumberWrongPosition} correct number${entry.correctNumberWrongPosition !== 1 ? 's' : ''} wrong position</span>
-          ${entry.isWin ? '<span class="ml-2 text-green-400 font-bold">✓ WINNER!</span>' : ''}
-        </div>
-      `;
-      gameoverHistory.appendChild(el);
-    });
-  });
-
-  socket.on('reset-for-rematch', (data) => {
-    state.gameState = 'waiting';
-    state.ready = data.roomState.players[state.playerId]?.ready ?? false;
-    state.myCodeSubmitted = false;
-    state.guessHistory = [];
-    state.winnerId = null;
-    state.currentTurnId = null;
-
-    if (state.ready) {
-      btnReady.textContent = '✅ READY!';
-      btnReady.className = 'btn-base btn-success w-full text-lg mt-6 py-4 opacity-60';
-    } else {
-      btnReady.textContent = 'READY';
-      btnReady.className = 'btn-base btn-success w-full text-lg mt-6 py-4';
-    }
-
-    btnEmote.classList.add('hidden');
-    emoteDisplay.classList.add('hidden');
-    phaseGameover.classList.add('hidden');
-    showView('view-lobby');
-
-    updateLobbyUI(data.roomState);
-    updateReadyStatus(data.roomState);
-  });
-
-  socket.on('receive-emote', (data) => {
-    emoteDisplayText.textContent = `${data.playerName} sent: ${data.emoji}`;
-    emoteDisplay.classList.remove('hidden');
-    setTimeout(() => emoteDisplay.classList.add('hidden'), 6000);
-  });
-
   // --- UI Event Handlers ---
 
   // Homepage
@@ -619,17 +684,24 @@
     inputJoinCode.focus();
   });
 
-  btnCreateRoom.addEventListener('click', () => {
-    if (!connected) {
-      joinError.textContent = 'Not connected to server. Please wait...';
+  btnCreateRoom.addEventListener('click', async () => {
+    btnCreateRoom.disabled = true;
+    btnCreateRoom.textContent = 'Creating...';
+    try {
+      const res = await fetch(`${API_URL}/api/create-room`, { method: 'POST' });
+      if (!res.ok) throw new Error('Failed to create room');
+      const data = await res.json();
+      connectWebSocket(data.roomCode, data.playerId);
+    } catch (err) {
+      joinError.textContent = 'Could not create room. Try again.';
       joinError.classList.remove('hidden');
-      setTimeout(() => joinError.classList.add('hidden'), 3000);
-      return;
+      setTimeout(() => joinError.classList.add('hidden'), 4000);
+      btnCreateRoom.disabled = false;
+      btnCreateRoom.textContent = '＋ Create a Room';
     }
-    socket.emit('create-room');
   });
 
-  btnJoin.addEventListener('click', () => {
+  btnJoin.addEventListener('click', async () => {
     const code = inputJoinCode.value.trim().toUpperCase();
     if (code.length !== 4) {
       joinError.textContent = 'Please enter a valid 4-character room code.';
@@ -637,14 +709,32 @@
       setTimeout(() => joinError.classList.add('hidden'), 3000);
       return;
     }
-    if (!connected) {
-      joinError.textContent = 'Not connected to server. Please wait...';
-      joinError.classList.remove('hidden');
-      setTimeout(() => joinError.classList.add('hidden'), 3000);
-      return;
-    }
     joinError.classList.add('hidden');
-    socket.emit('join-room', { roomId: code, name: 'Player 2' });
+    btnJoin.disabled = true;
+    btnJoin.textContent = 'Joining...';
+    try {
+      const res = await fetch(`${API_URL}/api/join-room`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ roomCode: code }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        joinError.textContent = data.error || 'Could not join room.';
+        joinError.classList.remove('hidden');
+        setTimeout(() => joinError.classList.add('hidden'), 4000);
+        btnJoin.disabled = false;
+        btnJoin.textContent = 'Join';
+        return;
+      }
+      connectWebSocket(data.roomCode, data.playerId);
+    } catch (err) {
+      joinError.textContent = 'Could not join room. Try again.';
+      joinError.classList.remove('hidden');
+      setTimeout(() => joinError.classList.add('hidden'), 4000);
+      btnJoin.disabled = false;
+      btnJoin.textContent = 'Join';
+    }
   });
 
   inputJoinCode.addEventListener('keydown', (e) => {
@@ -660,14 +750,14 @@
     if (!state.isHost) return;
     const name = inputNameHost.value.trim() || 'Player 1';
     state.myName = name;
-    socket.emit('update-name', { name });
+    wsSend('update-name', { name });
   });
 
   inputNameGuest.addEventListener('input', () => {
     if (state.isHost) return;
     const name = inputNameGuest.value.trim() || 'Player 2';
     state.myName = name;
-    socket.emit('update-name', { name });
+    wsSend('update-name', { name });
   });
 
   // Settings - Host only
@@ -676,7 +766,7 @@
       if (!state.isHost) return;
       const value = parseInt(btn.dataset.value);
       state.codeLength = value;
-      socket.emit('update-setting', { setting: 'codeLength', value });
+      wsSend('update-setting', { setting: 'codeLength', value });
     });
   });
 
@@ -690,14 +780,26 @@
       btnReady.textContent = 'READY';
       btnReady.className = 'btn-base btn-success w-full text-lg mt-6 py-4';
     }
-    socket.emit('player-ready', { ready: state.ready });
+    wsSend('player-ready', { ready: state.ready });
   });
 
   // Leave room
   btnLobbyLeave.addEventListener('click', () => {
-    socket.emit('leave-room');
-    resetToHome();
+    wsSend('leave-room');
+    disconnectAndReset();
   });
+
+  function disconnectAndReset() {
+    if (ws) {
+      ws.close();
+      ws = null;
+    }
+    clearInterval(reconnectTimer);
+    reconnectTimer = null;
+    roomCode = null;
+    playerId = null;
+    resetToHome();
+  }
 
   function resetToHome() {
     state.roomId = null;
@@ -711,6 +813,11 @@
 
     clearInterval(codeTimer);
     codeTimerEl.classList.add('hidden');
+
+    btnCreateRoom.disabled = false;
+    btnCreateRoom.textContent = '＋ Create a Room';
+    btnJoin.disabled = false;
+    btnJoin.textContent = 'Join';
 
     homeMain.classList.remove('hidden');
     homeOptions.classList.add('hidden');
@@ -731,7 +838,7 @@
     if (code.length !== state.codeLength) return;
     btnSubmitCode.disabled = true;
     btnSubmitCode.textContent = 'Submitting...';
-    socket.emit('submit-code', { code });
+    wsSend('submit-code', { code });
   });
 
   // Game - Submit guess
@@ -743,7 +850,7 @@
     guessStatus.textContent = 'Evaluating...';
     guessStatus.className = 'text-center text-sm text-gray-400 mt-3';
     guessStatus.classList.remove('hidden');
-    socket.emit('submit-guess', { guess });
+    wsSend('submit-guess', { guess });
   });
 
   function addGuessToHistory(entry) {
@@ -767,7 +874,6 @@
     guessHistoryEl.appendChild(el);
     guessHistoryEl.scrollTop = guessHistoryEl.scrollHeight;
 
-    // Reset guess dials after submitting
     if (!entry.isWin) {
       btnSubmitGuess.textContent = 'SUBMIT GUESS';
     }
@@ -782,13 +888,13 @@
     btnToggleOpponentGuesses.classList.toggle('active', opponentGuessesHidden);
   });
 
-  // Exclusion Grid - Toggle number tiles
+  // Exclusion Grid
   document.getElementById('exclusion-grid').addEventListener('click', (e) => {
     const tile = e.target.closest('.exclusion-tile');
     if (tile) tile.classList.toggle('excluded');
   });
 
-  // Emote - Toggle picker
+  // Emote
   btnEmote.addEventListener('click', () => {
     emotePicker.classList.toggle('hidden');
   });
@@ -800,23 +906,23 @@
   emoteOptions.forEach(el => {
     el.addEventListener('click', () => {
       const emoji = el.dataset.emote;
-      socket.emit('send-emote', { emoji });
+      wsSend('send-emote', { emoji });
       emoteDisplayText.textContent = `Sent: ${emoji}`;
       emoteDisplay.classList.remove('hidden');
-    setTimeout(() => emoteDisplay.classList.add('hidden'), 6000);
-    emotePicker.classList.add('hidden');
+      setTimeout(() => emoteDisplay.classList.add('hidden'), 6000);
+      emotePicker.classList.add('hidden');
     });
   });
 
   // Game Over - Play Again
   btnPlayAgain.addEventListener('click', () => {
-    socket.emit('play-again');
+    wsSend('play-again');
   });
 
   btnBackLobby.addEventListener('click', () => {
-    socket.emit('leave-room');
-    resetToHome();
+    wsSend('leave-room');
+    disconnectAndReset();
   });
 
-  console.log('CodeCracker client loaded.');
+  console.log('CodeCracker client loaded (Cloudflare Edition).');
 })();
