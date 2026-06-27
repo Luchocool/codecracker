@@ -1,3 +1,6 @@
+import { Room } from './room';
+export { Room };
+
 const ROOM_CODE_CHARS = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
 
 function generateRoomCode() {
