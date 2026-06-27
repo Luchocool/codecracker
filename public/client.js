@@ -1,16 +1,11 @@
 (function () {
   'use strict';
 
-  const WS_URL = (() => {
-    const loc = window.location;
-    const proto = loc.protocol === 'https:' ? 'wss:' : 'ws:';
-    return `${proto}//${loc.host}/ws`;
-  })();
+  const WORKER_URL = 'https://codecracker.luchocuber-09d.workers.dev';
 
-  const API_URL = (() => {
-    const loc = window.location;
-    return `${loc.protocol}//${loc.host}`;
-  })();
+  const WS_URL = `${WORKER_URL.replace(/^http/, 'ws')}/ws`;
+
+  const API_URL = WORKER_URL;
 
   let ws = null;
   let connected = false;
